@@ -170,7 +170,7 @@ class DC_Shapefile:
         icon_path = ':/plugins/DC_Shapefile/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u''),
+            text=self.tr('DC Shapefiles'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
@@ -207,6 +207,8 @@ class DC_Shapefile:
         self.dlg.lineEdit.clear()
         self.dlg.pushButton.clicked.connect(self.select_output_location)
 
+        self.dlg.checkBox_2.setEnabled(False)
+
 
         def appending():
 
@@ -215,6 +217,37 @@ class DC_Shapefile:
             selectedLayer.selectByExpression(""" "names" ILIKE '%}, {%' """)
             write = QgsVectorFileWriter.writeAsVectorFormat(selectedLayer,self.dlg.lineEdit.text(), "utf-8", driverName="ESRI Shapefile", onlySelected=True)
 
+        def direction():
+
+            roadIndex = self.dlg.comboBox.currentIndex()
+            bufferIndex = self.dlg.comboBox_3.currentIndex()
+            roadLayer = layers[roadIndex]
+            bufferLayer = layers[bufferIndex]
+            bufferLayer.selectByExpression("""
+                                        "names"  ILIKE '%southeast%' OR
+                                        "names"  ILIKE '%northeast%' OR
+                                        "names"  ILIKE '%south%' OR
+                                        "names"  ILIKE '%north%' OR
+                                        "names"  ILIKE '%east%' OR
+                                        "names"  ILIKE '%west%'  OR
+                                        "names"  ILIKE '%northeast%' OR
+                                        "names"  ILIKE '%southwest%'
+                                        """)
+            roadLayer.selectByExpression("""
+                                        "names"  Not ILIKE '%southeast%' AND
+                                        "names"  Not ILIKE '%northeast%' AND
+                                        "names"  Not ILIKE '%south%' AND
+                                        "names" Not ILIKE '%north%' AND
+                                        "names"  Not ILIKE '%east%' AND
+                                        "names" Not ILIKE '%west%'  AND
+                                        "names"  Not ILIKE '%northeast%' AND
+                                        "names"  Not ILIKE '%southwest%'
+                                        """)
+            
+
+
+
+            
 
 
         # Create the dialog with elements (after translation) and keep reference
@@ -232,4 +265,8 @@ class DC_Shapefile:
             
             if self.dlg.checkBox.isChecked():
                 appending()
+
+            if self.dlg.checkBox_2.isChecked():
+                direction()
+                
 
