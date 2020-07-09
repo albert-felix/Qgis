@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/DC_Shapefile" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
