@@ -1,10 +1,9 @@
-#[Potential Issue] Shape point too close to node point
+#-----------[Potential Issue] Shape point too close to node point------------------
 
 distance = QgsDistanceArea()
 distance.setEllipsoid('WGS84')
 f_id = []
 layer = iface.mapCanvas().layers()[0]
-print(layer.name())
 features = layer.getFeatures()
 for feature in features:
     geoms = feature.geometry()
@@ -19,3 +18,23 @@ for feature in features:
             if diff < 1:
                 f_id.append(feature.id())
 layer.selectByIds([p for p in f_id])
+
+
+#--------------------------------Adjacent Grid Viaduct--------------------------------
+
+layer = iface.mapCanvas().layers()[0]
+roadSelected = layer.materialize(QgsFeatureRequest().setSubsetOfAttributes(['plid','roadclass'],layer.fields()))
+params = {'INPUT' : roadSelected, u'PREDICATE': [7], 'INTERSECT' : roadSelected, 'METHOD': 0, 'OUTPUT':'memory:overlap'}
+overlapLayer = processing.run("native:extractbylocation", params)
+
+params = {'INPUT':overlapLayer['OUTPUT'], 'OUTPUT':'memory:verticesA'}
+verticesAll = processing.run("native:extractvertices", params)
+
+params = {'INPUT':overlapLayer['OUTPUT'], 'INTERSECT':overlapLayer['OUTPUT'], 'OUTPUT':'memory:verticesI'}
+verticesIntersect = processing.run("native:lineintersections", params)
+
+params = {'INPUT' : verticesAll['OUTPUT'], u'PREDICATE': [3], 'INTERSECT' : verticesIntersect['OUTPUT'], 'METHOD': 0, 'OUTPUT':'memory:final'}
+finalLayer = processing.run("native:extractbylocation", params)
+QgsProject.instance().addMapLayer(finalLayer['OUTPUT'])
+
+
