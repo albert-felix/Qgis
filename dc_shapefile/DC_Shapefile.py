@@ -24,7 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from PyQt5.QtWidgets import QFileDialog, QAction, QMessageBox
+from PyQt5.QtWidgets import QFileDialog, QAction, QMessageBox, QApplication
 import qgis.core
 from qgis.core import *
 from qgis import processing
@@ -217,6 +217,16 @@ class DC_Shapefile:
         self.dlg.pushButton.clicked.connect(self.select_output_location)
 
 
+        def buffering():
+
+            global conflationBufferLayer
+            bufferLayerIndex = self.dlg.conflation_box.currentIndex()
+            selectedBufferLayer = layers[bufferLayerIndex]
+            bufferDistance = float(self.dlg.lineEdit_2.text())
+            params = {'INPUT':selectedBufferLayer, 'DISTANCE':bufferDistance, 'SEGMENTS':5, 'END_CAP_STYLE':0, 'JOIN_STYLE':0, 'MITER_LIMIT':2, 'DISSOLVE':False, 'OUTPUT':'memory:conBuffer.shp' }
+            conflationBuffer = processing.run("native:buffer", params)
+            conflationBufferLayer = conflationBuffer['OUTPUT']
+
 
         def appending():
 
@@ -225,13 +235,17 @@ class DC_Shapefile:
             selectedLayer.selectByExpression(""" "names" ILIKE '%}, {%' """)
             QgsVectorFileWriter.writeAsVectorFormat(selectedLayer,self.dlg.lineEdit.text()+'/appending.shp', "utf-8", driverName="ESRI Shapefile", onlySelected=True)
 
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/appending.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
+
+
         def direction():
 
             roadIndex = self.dlg.road_box.currentIndex()
-            bufferIndex = self.dlg.conflation_box.currentIndex()
             roadLayer = layers[roadIndex]
-            bufferLayer = layers[bufferIndex]
-            bufferLayer.selectByExpression("""
+            conflationBufferLayer.selectByExpression("""
                                         "names"  ILIKE '%southeast%' OR
                                         "names"  ILIKE '%northeast%' OR
                                         "names"  ILIKE '%south%' OR
@@ -241,7 +255,7 @@ class DC_Shapefile:
                                         "names"  ILIKE '%northeast%' OR
                                         "names"  ILIKE '%southwest%'
                                         """)
-            bufferSelected = bufferLayer.materialize(QgsFeatureRequest().setFilterFids(bufferLayer.selectedFeatureIds()))
+            bufferSelected = conflationBufferLayer.materialize(QgsFeatureRequest().setFilterFids(conflationBufferLayer.selectedFeatureIds()))
             roadLayer.selectByExpression("""
                                         "names"  Not ILIKE '%southeast%' AND
                                         "names"  Not ILIKE '%northeast%' AND
@@ -258,16 +272,19 @@ class DC_Shapefile:
             params = {'INPUT': roadSelected, u'PREDICATE':[6], 'INTERSECT': bufferSelected, 'OUTPUT':self.dlg.lineEdit.text()+'/direction.shp'}
             processing.run("native:extractbylocation", params)
 
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/direction.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
+
 
         def nameIsNull():
 
             roadIndex = self.dlg.road_box.currentIndex()
-            bufferIndex = self.dlg.conflation_box.currentIndex()
             roadLayer = layers[roadIndex]
-            bufferLayer = layers[bufferIndex]
 
-            bufferLayer.selectByExpression(""" "names" is not {}""".format(qgis.core.NULL))
-            bufferSelected = bufferLayer.materialize(QgsFeatureRequest().setFilterFids(bufferLayer.selectedFeatureIds()))
+            conflationBufferLayer.selectByExpression(""" "names" is not {}""".format(qgis.core.NULL))
+            bufferSelected = conflationBufferLayer.materialize(QgsFeatureRequest().setFilterFids(conflationBufferLayer.selectedFeatureIds()))
 
             roadLayer.selectByExpression(""" "names" is {}""".format(qgis.core.NULL))
             roadSelected = roadLayer.materialize(QgsFeatureRequest().setFilterFids(roadLayer.selectedFeatureIds()))
@@ -276,16 +293,19 @@ class DC_Shapefile:
             params = {'INPUT': roadSelected, u'PREDICATE':[6], 'INTERSECT': bufferSelected, 'OUTPUT':self.dlg.lineEdit.text()+'/name_null.shp'}
             processing.run("native:extractbylocation", params)
 
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/name_null.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
+
 
         def rtnumIsNull():
 
             roadIndex = self.dlg.road_box.currentIndex()
-            bufferIndex = self.dlg.conflation_box.currentIndex()
             roadLayer = layers[roadIndex]
-            bufferLayer = layers[bufferIndex]
 
-            bufferLayer.selectByExpression(""" "routenums" is not {}""".format(qgis.core.NULL))
-            bufferSelected = bufferLayer.materialize(QgsFeatureRequest().setFilterFids(bufferLayer.selectedFeatureIds()))
+            conflationBufferLayer.selectByExpression(""" "routenums" is not {}""".format(qgis.core.NULL))
+            bufferSelected = conflationBufferLayer.materialize(QgsFeatureRequest().setFilterFids(conflationBufferLayer.selectedFeatureIds()))
 
             roadLayer.selectByExpression(""" "routenums" is {}""".format(qgis.core.NULL))
             roadSelected = roadLayer.materialize(QgsFeatureRequest().setFilterFids(roadLayer.selectedFeatureIds()))
@@ -293,6 +313,11 @@ class DC_Shapefile:
 
             params = {'INPUT': roadSelected, u'PREDICATE':[6], 'INTERSECT': bufferSelected, 'OUTPUT':self.dlg.lineEdit.text()+'/rtnum_null.shp'}
             processing.run("native:extractbylocation", params)
+
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/rtnum_null.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
 
 
         def localNull():
@@ -302,6 +327,11 @@ class DC_Shapefile:
             selectedLayer.selectByExpression(""" "roadclass" = 'local' AND "names" is {} AND "routenums" is {} """.format(qgis.core.NULL,qgis.core.NULL))
             QgsVectorFileWriter.writeAsVectorFormat(selectedLayer,self.dlg.lineEdit.text()+'/local_null.shp', "utf-8", driverName="ESRI Shapefile", onlySelected=True)
             
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/local_null.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
+
 
         def sublocalSpLimit():
 
@@ -309,7 +339,12 @@ class DC_Shapefile:
             selectedLayer = layers[selectedLayerIndex]
             selectedLayer.selectByExpression(""" "roadclass" = 'sublocal' AND "speedlimit" is not {} """.format(qgis.core.NULL))
             QgsVectorFileWriter.writeAsVectorFormat(selectedLayer,self.dlg.lineEdit.text()+'/sublocal_splimit.shp', "utf-8", driverName="ESRI Shapefile", onlySelected=True)
-            
+
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/sublocal_splimit.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
+
 
         def overlap():
 
@@ -319,6 +354,11 @@ class DC_Shapefile:
             params = {'INPUT' : roadSelected, u'PREDICATE': [7], 'INTERSECT' : roadSelected, 'METHOD': 0}
             processing.run("native:selectbylocation", params)
             QgsVectorFileWriter.writeAsVectorFormat(roadSelected,self.dlg.lineEdit.text()+'/overlap.shp', "utf-8", driverName="ESRI Shapefile", onlySelected=True)
+
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/overlap.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
 
 
         def completed():
@@ -341,6 +381,12 @@ class DC_Shapefile:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
             
+            self.iface.messageBar().pushMessage("Running DC Queries, please wait...",  level=Qgis.Warning)
+            QApplication.processEvents()
+
+            if self.dlg.lineEdit_2.text():
+                buffering()
+
             if self.dlg.app_checkBox.isChecked():
                 appending()
 
