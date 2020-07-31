@@ -349,8 +349,9 @@ class DC_Shapefile:
         def overlap():
 
             selectedLayerIndex = self.dlg.road_box.currentIndex()
-            selectedLayer = layers[selectedLayerIndex]
-            roadSelected = selectedLayer.materialize(QgsFeatureRequest())
+            roadSelected = layers[selectedLayerIndex]
+            provider = roadSelected.dataProvider()
+            provider.createSpatialIndex()
             params = {'INPUT' : roadSelected, u'PREDICATE': [7], 'INTERSECT' : roadSelected, 'METHOD': 0}
             processing.run("native:selectbylocation", params)
             QgsVectorFileWriter.writeAsVectorFormat(roadSelected,self.dlg.lineEdit.text()+'/overlap.shp', "utf-8", driverName="ESRI Shapefile", onlySelected=True)
