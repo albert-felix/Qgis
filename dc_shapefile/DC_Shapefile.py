@@ -201,6 +201,8 @@ class DC_Shapefile:
         layer_list = []
         for layer in layers:
             layer_list.append(layer.name())
+        self.dlg.road_box_raw.clear()
+        self.dlg.road_box_raw.addItems(layer_list)
         self.dlg.road_box.clear()
         self.dlg.road_box.addItems(layer_list)
         self.dlg.conflation_box.clear()
@@ -362,6 +364,32 @@ class DC_Shapefile:
             myLayerNode.setCustomProperty("showFeatureCount",True)
 
 
+        def classChange():
+
+            rawIndex = self.dlg.road_box_raw.currentIndex()
+            rawRoad = layers[rawIndex]
+            rawRoadSelected = rawRoad.materialize(QgsFeatureRequest().setSubsetOfAttributes(['plid','roadclass'], rawRoad.fields()))
+            finalIndex = self.dlg.road_box.currentIndex()
+            finalRoad = layers[finalIndex]
+            finalRoadSelected = finalRoad.materialize(QgsFeatureRequest().setSubsetOfAttributes(['plid','roadclass','lastmodi_1'], finalRoad.fields()))
+            finalRoadSelected.setName('final')
+
+            vJoin = QgsVectorLayerJoinInfo()
+            vJoin.setJoinFieldName('plid')
+            vJoin.setTargetFieldName('plid')
+            vJoin.setUsingMemoryCache(True)
+            vJoin.setJoinLayer(finalRoadSelected)
+
+            rawRoadSelected.addJoin(vJoin)
+            rawRoadSelected.selectByExpression(""" "roadclass" != "final_roadclass" """)
+            QgsVectorFileWriter.writeAsVectorFormat(rawRoadSelected,self.dlg.lineEdit.text()+'/class_change.shp', "utf-8", driverName="ESRI Shapefile", onlySelected=True)
+            
+            addLayer = self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/class_change.shp',"","ogr")
+            root = QgsProject.instance().layerTreeRoot()
+            myLayerNode = root.findLayer(addLayer.id())
+            myLayerNode.setCustomProperty("showFeatureCount",True)
+
+
         def completed():
 
             completed_message = QMessageBox()
@@ -408,6 +436,9 @@ class DC_Shapefile:
             
             if self.dlg.overlap_checkBox.isChecked():
                 overlap()
+
+            if self.dlg.classChange_checkBox.isChecked():
+                classChange()
 
             completed()
 
