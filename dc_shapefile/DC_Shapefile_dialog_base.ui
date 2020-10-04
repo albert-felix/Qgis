@@ -352,6 +352,19 @@
     <string>Class Change</string>
    </property>
   </widget>
+  <widget class="QCheckBox" name="nameDiff_checkBox">
+   <property name="geometry">
+    <rect>
+     <x>300</x>
+     <y>380</y>
+     <width>121</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Name Difference</string>
+   </property>
+  </widget>
  </widget>
  <resources/>
  <connections>

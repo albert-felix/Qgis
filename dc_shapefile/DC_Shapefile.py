@@ -21,9 +21,9 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QProgressBar
 from PyQt5.QtWidgets import QFileDialog, QAction, QMessageBox, QApplication
 import qgis.core
 from qgis.core import *
@@ -215,6 +215,8 @@ class DC_Shapefile:
         self.dlg.local_checkBox.setChecked(False)
         self.dlg.sublocal_checkBox.setChecked(False)
         self.dlg.overlap_checkBox.setChecked(False)
+        self.dlg.classChange_checkBox.setChecked(False)
+        self.dlg.nameDiff_checkBox.setChecked(False)
 
         self.dlg.pushButton.clicked.connect(self.select_output_location)
 
@@ -389,6 +391,27 @@ class DC_Shapefile:
             myLayerNode = root.findLayer(addLayer.id())
             myLayerNode.setCustomProperty("showFeatureCount",True)
 
+        
+        def nameDifference():
+
+            roadIndex = self.dlg.road_box.currentIndex()
+            roadLayer = layers[roadIndex]
+
+            roadProvider = roadLayer.dataProvider()
+            roadProvider.createSpatialIndex()
+
+            conProvider = conflationBufferLayer.dataProvider()
+            conProvider.createSpatialIndex()
+
+            params = {'INPUT' : roadLayer, 'JOIN' : conflationBufferLayer, 'DISCARD_NONMATCHING' : True, 'JOIN_FIELDS' : [], 'METHOD' : 1, u'PREDICATE' : [5], 'PREFIX': 'source', 'OUTPUT' : 'memory:joined'}
+            diffOutput = processing.run("qgis:joinattributesbylocation", params)
+            joinedLayer = diffOutput['OUTPUT']
+            joinedLayer.selectByExpression(' "names" != "sourcenames" ')
+            QgsVectorFileWriter.writeAsVectorFormat(joinedLayer, self.dlg.lineEdit.text()+'/name_difference.shp' , "utf-8", driverName="ESRI Shapefile", onlySelected=True)
+            
+            self.iface.addVectorLayer(self.dlg.lineEdit.text()+'/name_difference.shp', "", "ogr")
+
+
 
         def completed():
 
@@ -410,35 +433,53 @@ class DC_Shapefile:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
             
-            self.iface.messageBar().pushMessage("Running DC Queries, please wait...",  level=Qgis.Warning)
-            QApplication.processEvents()
+
+            progressMessageBar = self.iface.messageBar().createMessage("Running DC Queries, please wait...")
+            progress = QProgressBar()
+            progress.setMaximum(100)
+            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+            progressMessageBar.layout().addWidget(progress)
+            self.iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
 
             if self.dlg.lineEdit_2.text():
                 buffering()
+                progress.setValue(10)
 
             if self.dlg.app_checkBox.isChecked():
                 appending()
+                progress.setValue(20)
 
             if self.dlg.dir_checkBox.isChecked():
                 direction()
+                progress.setValue(30)
 
             if self.dlg.name_checkBox.isChecked():
                 nameIsNull()
+                progress.setValue(40)
 
             if self.dlg.rtnum_checkBox.isChecked():
                 rtnumIsNull()
+                progress.setValue(50)
 
             if self.dlg.local_checkBox.isChecked():
                 localNull()
+                progress.setValue(60)
 
             if self.dlg.sublocal_checkBox.isChecked():
                 sublocalSpLimit()
+                progress.setValue(70)
             
             if self.dlg.overlap_checkBox.isChecked():
                 overlap()
+                progress.setValue(80)
 
             if self.dlg.classChange_checkBox.isChecked():
                 classChange()
+                progress.setValue(90)
 
+            if self.dlg.nameDiff_checkBox.isChecked():
+                nameDifference()
+            
+            progress.setValue(100)
             completed()
 
