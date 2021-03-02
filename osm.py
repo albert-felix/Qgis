@@ -12,7 +12,7 @@ clusterSize = 8
 
 def generateBuilding():
     
-    global servicePoints, buildingCount, clusterSize, unique_values
+    global servicePoints, buildingCount, clusterSize, unique_values, centroidService
 
     def toPolygonGeoJson(jsonData):
 
@@ -61,7 +61,9 @@ def generateBuilding():
         layer.setRenderer(renderer)
         layer.triggerRepaint()
 
-    def generateSplitters(servicePoints):
+    def serviceCentroid(servicePoints):
+
+        global centroidService
 
         params = {'INPUT': servicePoints, 'FIELD':'CLUSTER_ID', 'OUTPUT':'memory:dissolveService'}
         dissolveServiceOutput = processing.run("native:dissolve", params)
@@ -70,7 +72,6 @@ def generateBuilding():
         params = {'INPUT': dissolveService, 'OUTPUT':'memory:centroidService'}
         centroidServiceOutput = processing.run("native:centroids", params)
         centroidService = centroidServiceOutput['OUTPUT']
-
 
 
     # OSM Overpass API Request
@@ -112,18 +113,19 @@ def generateBuilding():
     buildingCount = buildingPoints.featureCount()
 
     clusters = buildingCount//clusterSize
-    params = {'INPUT': buildingPoints, 'CLUSTERS':clusters, 'MINPOINTS':clusterSize, 'OUTPUT':'memory:clusters'}
+    params = {'INPUT': buildingPoints, 'CLUSTERS':clusters, 'MINPOINTS':clusterSize, 'OUTPUT':'memory:servicePoints'}
     cluster = processing.run("script:constrained_kmeans", params)
     servicePoints = cluster['OUTPUT']
     categorizeSymbol(servicePoints)
 
     # QgsProject.instance().addMapLayer(buildingPoints)
     QgsProject.instance().addMapLayer(servicePoints)
+    serviceCentroid(servicePoints)
 
 
 def generateRoad():
 
-    global roadPoints
+    global roadLayer
 
     def toLineGeoJson(jsonData):
 
@@ -174,26 +176,51 @@ def generateRoad():
 
 
     roadGeoJson = toLineGeoJson(json.loads(roadJson))
-    roadLayer = QgsVectorLayer(roadGeoJson,"road","ogr")
+    roadLayer = QgsVectorLayer(roadGeoJson,"distributionRoad","ogr")
 
     # iface.addVectorLayer(roadGeoJson,"road","ogr")
     QgsProject.instance().addMapLayer(roadLayer)
 
-    params = {'INPUT': roadLayer, 'DISTANCE':0.00005, 'OUTPUT':'memory:roadPoints'}
-    roadPointsOutput = processing.run("native:pointsalonglines", params)
-    roadPoints = roadPointsOutput['OUTPUT']
+    # params = {'INPUT': roadLayer, 'DISTANCE':0.00005, 'OUTPUT':'memory:roadPoints'}
+    # roadPointsOutput = processing.run("native:pointsalonglines", params)
+    # roadPoints = roadPointsOutput['OUTPUT']
+
+
+def generateSplitters():
+
+    global splitterPoints
+
+    params = {'INPUT': centroidService, 'REFERENCE_LAYER': roadLayer, 'TOLERANCE': 10, 'BEHAVIOR': 3, 'OUTPUT':'memory:splitterPoints'}
+    splitterPointsOutput = processing.run("native:snapgeometries", params)
+    splitterPoints = splitterPointsOutput['OUTPUT']
+
+    QgsProject.instance().addMapLayer(splitterPoints)
 
 
 def generateConnectRoad():
 
-    params = {'INPUT': buildingPoints, 'HUBS': roadPoints, 'FIELD':'id', 'UNIT': 0, 'OUTPUT':'memory:connectRoad'}
-    connectRoadOutput = processing.run("qgis:distancetonearesthublinetohub", params)
-    connectRoad = connectRoadOutput['OUTPUT']
+    # get unique values 
+    cluster_values = servicePoints.fields().indexFromName('CLUSTER_ID')
+    unique_values = servicePoints.dataProvider().uniqueValues(cluster_values)
+    connectList = []
 
-    QgsProject.instance().addMapLayer(connectRoad)
+    for unique_value in unique_values:
+        query = f""" "CLUSTER_ID" = {unique_value} """
+        servicePoints.selectByExpression(query)
+        splitterPoints.selectByExpression(query)
+        params = {'INPUT': QgsProcessingFeatureSourceDefinition(servicePoints.id(),True), 'HUBS': QgsProcessingFeatureSourceDefinition(splitterPoints.id(),True), 'FIELD':'CLUSTER_ID', 'UNIT': 0, 'OUTPUT':f'memory:connectionRoad_{unique_value}'}
+        connectRoadOutput = processing.run("qgis:distancetonearesthublinetohub", params)
+        connectRoad = connectRoadOutput['OUTPUT']
+        connectList.append(connectRoad)
+        # QgsProject.instance().addMapLayer(connectRoad)
 
+    params = {'LAYERS': connectList , 'OUTPUT':'memory:connectionRoad'}
+    connectionRoadOutput = processing.run("native:mergevectorlayers", params)
+    connectionRoad = connectionRoadOutput['OUTPUT']
+    QgsProject.instance().addMapLayer(connectionRoad)
 
 generateBuilding()
 generateRoad()
+generateSplitters()
 generateConnectRoad()
 
