@@ -8,13 +8,13 @@ layerProvider.addAttributes([QgsField("Members",QVariant.String)])
 layer.updateFields()
 u_counts = layer_count // members
 r_counts = layer_count % members
-a = 0
+a = 1
 allot = 0
 layer.startEditing()
 for i in range(layer_count):
     if r_counts > 0:
         if allot < u_counts+1:
-            new_value = {f_len:chr(65+a)}
+            new_value = {f_len:a}
             layerProvider.changeAttributeValues({i:new_value})
             allot += 1
             if allot == u_counts+1:
@@ -23,7 +23,7 @@ for i in range(layer_count):
                 a += 1
     else:
         if allot < u_counts:
-            new_value = {f_len:chr(65+a)}
+            new_value = {f_len:a}
             layerProvider.changeAttributeValues({i:new_value})
             allot += 1
             if allot == u_counts:
